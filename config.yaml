@@ -1,0 +1,10 @@
+data:
+  dream_text_file_path: "datasets/rsos_dream_data.tsv"
+  keywords_file_path: "datasets/dreams_interpretations.csv"
+  dream_text_column: "text_dream"
+  keywords_column: "Dream Symbol"
+
+model:
+  name: "togethercomputer/RedPajama-INCITE-7B-Chat"
+  num_keywords: 10
+  device: 0  # 0 for GPU, -1 for CPU
