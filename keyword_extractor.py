@@ -1,8 +1,8 @@
 from typing import Any, Tuple, List
 import pandas as pd
 from yaml_parser import load_config
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
-from transformers.pipelines.base import Pipeline
+import torch
+from sentence_transformers import SentenceTransformer, util
 
 
 def read_datasets(config: Any) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -25,23 +25,23 @@ def read_datasets(config: Any) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     return dream_df, keywords_df
 
-def extract_keywords_from_text(dream_text: str, candidate_keywords: List[str], pipe: Pipeline, top_n_keywords=10,
-                               max_new_tokens=128) -> List[str]:
+def extract_keywords_from_text(dream_text: str, keywords_embeddings: torch.Tensor, candidate_keywords: List[str],
+                               model: SentenceTransformer, top_n_keywords: int = 10) -> List[str]:
     """
     This function extracts keywords from the dream text using the given pipeline
     (which contains a model and tokenizer)
     :param dream_text: Text description of the dream
+    :param keywords_embeddings: Embeddings of the keywords
     :param candidate_keywords: List of keywords to choose from
-    :param pipe: pipeline that contains a model and a tokenizer
-    :param top_n_keywords: How many keywords to extract?
-    :param max_new_tokens: Maximum number of tokens to generate
+    :param model: SentenceTransformer model
+    :param top_n_keywords: Number of keywords to extract
     :return: A list of keywords
     """
-    prompt = (f"Extract {top_n_keywords} keywords from the following dream using only this keywords list:\n "
-              f"{','.join(candidate_keywords)}\nDream:\n{dream_text}\nKeywords:")
-    output = pipe(prompt, max_new_tokens=max_new_tokens, do_sample=False)[0]['generated_text']
-    extracted_keywords = output.split('Keywords:')[-1].strip().split(',')[:top_n_keywords]
-    return [kw.strip() for kw in extracted_keywords if kw.strip() in candidate_keywords]
+    dream_embeddings = model.encode(dream_text, convert_to_tensor=True, device=model.device.type)
+    scores = util.cos_sim(dream_embeddings, keywords_embeddings)[0]
+    top_indices = torch.topk(scores, k=top_n_keywords).indices
+    return [candidate_keywords[i] for i in top_indices]
+
 
 def extract_and_save_keywords_from_dataframes(config_path:str='config.yaml') \
         -> None:
@@ -53,27 +53,34 @@ def extract_and_save_keywords_from_dataframes(config_path:str='config.yaml') \
     """
     config = load_config(config_path)
     dream_df, keywords_df = read_datasets(config)
+    canndidate_keywords = keywords_df[config['data']['keywords_column']].dropna().unique().tolist()
 
-    # model and tokenizer setup
-    tokenizer = AutoTokenizer.from_pretrained(config['model']['name'])
-    model = AutoModelForCausalLM.from_pretrained(config['model']['name'])
-    pipe = pipeline("text-generation", model=model, tokenizer=tokenizer,
-                    device=config['model']['device'])
+    # Load model
+    model_name = config['model']['name']
+    model = SentenceTransformer(model_name)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
 
-    candidate_keywords = keywords_df[config['data']['keywords_column']].tolist()
-    top_n_keywords = config['model']['num_keywords']
+    # Encode keywords
+    keywords_embeddings = model.encode(canndidate_keywords, convert_to_tensor=True, device=model.device.type)
 
-    keywords_col = []
+    # Extract keywords from ech dream
+    top_n = config['model']['num_keywords']
+    results = []
 
-    for dream_text in dream_df[config['data']['dream_text_column']]:
-        keywords = extract_keywords_from_text(dream_text, candidate_keywords, pipe,
-                                              top_n_keywords=top_n_keywords)
-        keywords_col.append(keywords)
+    for dream in dream_df[config['data']['dream_text_column']]:
+        keywords = extract_keywords_from_text(dream, keywords_embeddings, canndidate_keywords, model, top_n)
+        results.append(", ".join(keywords))
 
-    dream_df[config['data']['keywords_column']] = keywords_col
+    dream_df[config['data']['keywords_column']] = results
 
+    # Save results
     if '.tsv' in config['data']['dream_text_file_path']:
         dream_df.to_csv(config['data']['dream_text_file_path'], sep='\t', index=False)
 
     else:
         dream_df.to_csv(config['data']['dream_text_file_path'], index=False)
+
+
+if __name__ == '__main__':
+    extract_and_save_keywords_from_dataframes()
