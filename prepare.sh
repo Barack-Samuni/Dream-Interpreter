@@ -5,8 +5,9 @@ source .dream/bin/activate
 
 pip install transformers
 pip install torch
-pip install pandas
+pip install pandas, pandasql
 pip install matplotlib
 pip install ipykernel
+pip install ipywidgets
 
 
