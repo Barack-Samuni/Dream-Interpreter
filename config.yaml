@@ -1,6 +1,6 @@
 data:
   dream_text_file_path: "datasets/rsos_dream_data.tsv"
-  keywords_file_path: "datasets/dreams_interpretations.csv"
+  keywords_file_path: "datasets/fixed_interpretations.csv"
   dream_text_column: "text_dream"
   keywords_column: "Dream Symbol"
 
