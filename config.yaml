@@ -1,0 +1,9 @@
+data:
+  dream_text_file_path: "datasets/rsos_dream_data.tsv"
+  keywords_file_path: "datasets/dreams_interpretations.csv"
+  dream_text_column: "text_dream"
+  keywords_column: "Dream Symbol"
+
+model:
+  name: 'all-MiniLM-L6-v2'
+  num_keywords: 5
