@@ -97,7 +97,7 @@ def load_mistral_4bit_model(model_name="mistralai/Mistral-7B-Instruct"):
 
 
 # Step 3: Batch interpret function
-def batch_generate_interpretations(df, model_pipeline, batch_size=4, max_output_length=250):
+def batch_generate_interpretations(df, model_pipeline, batch_size=4, **kwargs):
     interpretations = []
     for i in tqdm(range(0, len(df), batch_size), desc="Generating Interpretations"):
         batch_df = df.iloc[i:i+batch_size]
@@ -106,13 +106,14 @@ def batch_generate_interpretations(df, model_pipeline, batch_size=4, max_output_
             format_input(row["prompt"], row["dream"], row["symbols"])
             for _, row in batch_df.iterrows()
         ]
+        max_input_tokens=model_pipeline.tokenizer.model_max_length
+        for prompt in inputs:
+            token_count = len(model_pipeline.tokenizer.encode(prompt))
+            if token_count > max_input_tokens:
+                print(f"⚠️ Prompt truncated: {token_count} tokens (limit = {max_input_tokens})")
 
-        print(len(inputs[0]))
-
-        outputs = model_pipeline(inputs, max_length=max_output_length, do_sample=False)
-        batch_outputs = [out["generated_text"] for out in outputs]
-
-        interpretations.extend(batch_outputs)
+        outputs = model_pipeline(inputs, **kwargs)
+        interpretations.extend(outputs)
 
     df["interpretation"] = interpretations
     return df
