@@ -57,18 +57,6 @@ def format_input(prompt, dream, symbols):
         "Interpretation:"
     )
 
-def format_mistral_input(prompt, dream, symbols):
-    return f"""### Instruction:
-{prompt.strip()}
-
-### Dream:
-{dream.strip()}
-
-### Symbols:
-{symbols.strip()}
-
-### Interpretation:"""
-
 # Load flan-T5 model
 def load_causal_model(model_name = "google/flan-t5-large"):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -118,26 +106,3 @@ def batch_generate_interpretations(df, model_pipeline, batch_size=4, **kwargs):
     df["interpretation"] = interpretations
     return df
 
-
-def batch_generate_interpretations_mistral(df, model_pipeline, batch_size=4, max_input_tokens=8192):
-    interpretations = []
-    for i in tqdm(range(0, len(df), batch_size), desc="Generating Interpretations"):
-        batch_df = df.iloc[i:i+batch_size]
-
-        inputs = [
-            format_input(row["prompt"], row["dream"], row["symbols"])
-            for _, row in batch_df.iterrows()
-        ]
-
-        for prompt in inputs:
-            token_count = len(model_pipeline.tokenizer.encode(prompt))
-            if token_count > max_input_tokens:
-                print(f"⚠️ Prompt truncated: {token_count} tokens (limit = {max_input_tokens})")
-
-        outputs = model_pipeline(inputs)
-        batch_outputs = [out[0]["generated_text"].split("Interpretation:")[-1].strip() for out in outputs]
-
-        interpretations.extend(batch_outputs)
-
-    df["interpretation"] = interpretations
-    return df
