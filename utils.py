@@ -44,14 +44,18 @@ def save_df_as_pretty_html(df, filename="output.html"):
         font-size: 16px;
         font-family: Arial, sans-serif;
         width: 100%;
-        table-layout: auto;
-        word-break: break-word;
+        table-layout: auto; /* ✅ Let browser fit naturally */
     }
     .styled-table th, .styled-table td {
         border: 1px solid #dddddd;
         padding: 10px;
         vertical-align: top;
         text-align: left;
+        overflow-wrap: break-word; /* ✅ Break inside words */
+        white-space: pre-wrap; /* ✅ Honor \\n linebreaks */
+    }
+    .styled-table td {
+        max-width: 600px; /* ✅ Avoid huge dream fields expanding table */
     }
     .styled-table th {
         background-color: #f2f2f2;
