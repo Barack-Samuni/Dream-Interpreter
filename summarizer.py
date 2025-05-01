@@ -1,7 +1,12 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+from datasets import Dataset, load_dataset
 from tqdm import tqdm
+
+import os, gc
+import pandas as pd
+
 
 # primitive bart model
 def load_summarizer(model_name="sshleifer/distilbart-cnn-12-6"):
@@ -28,34 +33,28 @@ def batch_summarize(data, summarizer, batch_size=8, max_input_length=1024):
     return summaries
 
 
-# Example usage
-if __name__ == "__main__":
-    # Mock dataset
-    dataset = [
-        {"prompt": "Explain what this dream means.", 
-         "sentences": [
-             "I saw a large snake in my garden.",
-             "It slithered toward me but didn’t attack.",
-             "I felt a mix of fear and curiosity.",
-             "My dog was barking loudly in the background.",
-             "Then I woke up suddenly."
-         ]}
-    ] * 100  # simulate 100 entries for testing
-
-    summarizer = load_summarizer()
-    results = batch_summarize(dataset, summarizer, batch_size=8)
-
-    print("Example summary:", results[0])
 
 # Format prompt for causal model
 # slightly better flan-T5 model
 # Step 2: Define input formatting
-def format_input(prompt, dream, symbols):
-    return (f"Instruction: {prompt.strip()}\n\n"            
-        f"Dream: {dream.strip()}\n\n"
-        f"Symbols:\n{symbols.strip()}\n\n"
-        "Interpretation:"
-    )
+# Universal prompt formatter
+def format_prompt(prompt, dream, symbols, model_family="decoder"):
+    if model_family == "decoder":  # For Mistral, Llama, GPT-style
+        return f"""### Instruction:
+{prompt.strip()}
+
+### Dream:
+{dream.strip()}
+
+### Symbols:
+{symbols.strip()}
+
+### Interpretation:"""
+    elif model_family == "encoder":  # For T5, FLAN-T5
+        return f"Interpret this dream: {dream.strip()}\nSymbols: {symbols.strip()}"
+    else:
+        raise ValueError(f"Unknown model_family: {model_family}")
+
 
 # Load flan-T5 model
 def load_causal_model(model_name = "google/flan-t5-large"):
@@ -80,29 +79,101 @@ def load_mistral_4bit_model(model_name="mistralai/Mistral-7B-Instruct"):
         quantization_config=bnb_config,
         torch_dtype=torch.float16
     )
+    tokenizer.pad_token = tokenizer.eos_token
 
     return model, tokenizer
 
 
-# Step 3: Batch interpret function
-def batch_generate_interpretations(df, model_pipeline, batch_size=4, **kwargs):
-    interpretations = []
-    for i in tqdm(range(0, len(df), batch_size), desc="Generating Interpretations"):
-        batch_df = df.iloc[i:i+batch_size]
 
-        inputs = [
-            format_input(row["prompt"], row["dream"], row["symbols"])
-            for _, row in batch_df.iterrows()
-        ]
-        max_input_tokens=model_pipeline.tokenizer.model_max_length
-        for prompt in inputs:
-            token_count = len(model_pipeline.tokenizer.encode(prompt))
-            if token_count > max_input_tokens:
-                print(f"⚠️ Prompt truncated: {token_count} tokens (limit = {max_input_tokens})")
+def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation", max_possible=256):
+    low, high = 1, max_possible
+    best = 1
 
-        outputs = model_pipeline(inputs, **kwargs)
-        interpretations.extend(outputs)
+    while low <= high:
+        mid = (low + high) // 2
+        try:
+            print(f"Trying batch_size = {mid}...", end=" ")
+            test_pipeline = pipeline(
+                task,
+                model=model,
+                tokenizer=tokenizer,
+                batch_size=mid,
+                truncation=True,
+                max_length=1024,
+                do_sample=False
+            )
+            prompts = [sample_prompt] * mid
+            _ = test_pipeline(prompts)
+            best = mid
+            low = mid + 1
+            print("✅ success")
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                print("❌ OOM")
+                torch.cuda.empty_cache()
+                gc.collect()
+                high = mid - 1
+            else:
+                raise e
 
-    df["interpretation"] = interpretations
-    return df
+    print(f"\n✅ Optimal batch size: {best}")
+    return best
+
+# PromptFormatter object
+class PromptFormatter:
+    def __init__(self, model_family="decoder"):
+        self.model_family = model_family
+
+    def format(self, prompt, dream, symbols):
+        if self.model_family == "decoder":
+            return f"""### Instruction:
+{prompt.strip()}
+
+### Dream:
+{dream.strip()}
+
+### Symbols:
+{symbols.strip()}
+
+### Interpretation:"""
+        elif self.model_family == "encoder":
+            return f"Interpret this dream: {dream.strip()}\nSymbols: {symbols.strip()}"
+        else:
+            raise ValueError(f"Unknown model_family: {self.model_family}")
+
+    def unformat(self, output):
+        if self.model_family == "decoder":
+            return output.split("### Interpretation:")[-1].strip()
+        elif self.model_family == "encoder":
+            return output.strip()
+        else:
+            raise ValueError(f"Unknown model_family: {self.model_family}")
+
+
+# This script loads the Mistral-7B-Instruct model in 4-bit quantized mode
+# and runs batch dream interpretation using instruction prompting, saving batches to disk for robustness.
+
+# Batch processing using Hugging Face datasets with caching
+def batch_generate_interpretations(dataset, model_pipeline, formatter, batch_size=8, max_length=250, save_dir="outputs"):
+    os.makedirs(save_dir, exist_ok=True)
+
+    def model_inference(batch):
+        prompts = [formatter.format(p, d, s) for p, d, s in zip(batch["prompt"], batch["dream"], batch["dream symbols"])]
+        outputs = model_pipeline(prompts, max_length=max_length)
+        batch["interpretation"] = [formatter.unformat(out["generated_text"]) for out in outputs]
+        return batch
+
+    # Map over dataset with batching and caching enabled
+    result_dataset = dataset.map(
+        model_inference,
+        batched=True,
+        batch_size=batch_size,
+        cache_file_names={"train": os.path.join(save_dir, "intermediate_cache.arrow")},
+        load_from_cache_file=True
+    )
+
+    # Save final results to disk
+    result_dataset.to_csv(os.path.join(save_dir, "results.csv"))
+
+    return result_dataset.to_pandas()
 
