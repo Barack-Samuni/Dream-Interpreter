@@ -1,0 +1,16 @@
+transformers
+datasets
+torch
+pandas
+pandasql
+matplotlib
+plotly
+ipykernel
+tabulate
+ipywidgets
+accelerate
+bitsandbytes
+tqdm
+huggingface_hub
+sentence-transformers
+nbformat
