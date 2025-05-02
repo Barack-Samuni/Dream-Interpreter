@@ -85,7 +85,7 @@ def load_mistral_4bit_model(model_name="mistralai/Mistral-7B-Instruct"):
 
 
 
-def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation", max_possible=256):
+def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation", max_possible=256, max_length=1024):
     low, high = 1, max_possible
     best = 1
 
@@ -99,11 +99,11 @@ def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation",
                 tokenizer=tokenizer,
                 batch_size=mid,
                 truncation=True,
-                max_length=1024,
+                max_length=max_length,
                 do_sample=False
             )
             prompts = [sample_prompt] * mid
-            _ = test_pipeline(prompts)
+            _ = test_pipeline(prompts, max_length=max_length)
             best = mid
             low = mid + 1
             print("✅ success")
@@ -154,21 +154,21 @@ class PromptFormatter:
 # and runs batch dream interpretation using instruction prompting, saving batches to disk for robustness.
 
 # Batch processing using Hugging Face datasets with caching
-def batch_generate_interpretations(dataset, model_pipeline, formatter, batch_size=8, max_length=250, save_dir="outputs"):
+def batch_generate_interpretations(dataset: Dataset, model_pipeline, formatter, batch_size=8, max_length=250, save_dir="outputs"):
     os.makedirs(save_dir, exist_ok=True)
 
     def model_inference(batch):
-        prompts = [formatter.format(p, d, s) for p, d, s in zip(batch["prompt"], batch["dream"], batch["dream symbols"])]
+        prompts = [formatter.format(p, d, s) for p, d, s in zip(batch["prompt"], batch["dream"], batch["symbols"])]
         outputs = model_pipeline(prompts, max_length=max_length)
-        batch["interpretation"] = [formatter.unformat(out["generated_text"]) for out in outputs]
+        batch["interpretation"] = [formatter.unformat(out[0]["generated_text"]) for out in outputs]
         return batch
 
     # Map over dataset with batching and caching enabled
     result_dataset = dataset.map(
-        model_inference,
+        function=model_inference,
         batched=True,
         batch_size=batch_size,
-        cache_file_names={"train": os.path.join(save_dir, "intermediate_cache.arrow")},
+        cache_file_name= os.path.join(save_dir, "intermediate_cache.arrow"),
         load_from_cache_file=True
     )
 
