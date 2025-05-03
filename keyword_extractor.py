@@ -44,7 +44,7 @@ def extract_keywords_from_text(dream_text: str, keywords_embeddings: torch.Tenso
 
 
 def extract_and_save_keywords_from_dataframes(config_path:str='config.yaml') \
-        -> None:
+        -> pd.DataFrame:
     """
     This function gets a config file path and uses its parameters to
     read the dataframes and extract keywords from the dream text
