@@ -5,8 +5,11 @@ def release_all_gpu_memory(additional_objects=[]):
 
     # Delete model objects (make sure they're declared global or passed)
     globals_to_clear = ["model", "tokenizer", "text2text_generator"] + additional_objects
+    print(globals_to_clear)
+    gks = list(globals().keys())
+    print(gks)
     for name in globals_to_clear:
-        if name in globals():
+        if name in gks:
             print("clearing ", name)
             del globals()[name]
 
@@ -20,6 +23,15 @@ def release_all_gpu_memory(additional_objects=[]):
 
     print("✅ All GPU memory cleared.")
 
+def globals_snapshot():
+    import pandas as pd
+    gks = list(globals().keys())
+    vars = []
+    for k in gks:
+        v = globals()[k]
+        vars.append({"key": k, "var": str(v) , "type": str(type(v))})
+    tps = pd.DataFrame(vars)
+    return tps
 
 def save_df_as_pretty_html(df, filename="output.html"):
     # Convert newlines to <br> for HTML

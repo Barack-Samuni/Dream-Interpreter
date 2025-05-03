@@ -98,7 +98,7 @@ def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation",
                 model=model,
                 tokenizer=tokenizer,
                 batch_size=mid,
-                truncation=True,
+                truncation=False,
                 max_length=max_length,
                 do_sample=False
             )
@@ -150,10 +150,15 @@ class PromptFormatter:
             raise ValueError(f"Unknown model_family: {self.model_family}")
 
 
-# This script loads the Mistral-7B-Instruct model in 4-bit quantized mode
-# and runs batch dream interpretation using instruction prompting, saving batches to disk for robustness.
 
-# Batch processing using Hugging Face datasets with caching
+# Efficient batched processing using dataset.map
+
+# Explanation:
+# HuggingFace Datasets `map()` supports batching, but does NOT automatically clean up GPU memory.
+# Since transformers pipeline and large models may leave residual allocations, we force memory cleanup
+# after each batch using `torch.cuda.empty_cache()` and `gc.collect()`.
+# This prevents out-of-memory (OOM) errors in large datasets or constrained VRAM environments.
+
 def batch_generate_interpretations(dataset: Dataset, model_pipeline, formatter, batch_size=8, max_length=250, save_dir="outputs"):
     os.makedirs(save_dir, exist_ok=True)
 
@@ -161,6 +166,11 @@ def batch_generate_interpretations(dataset: Dataset, model_pipeline, formatter, 
         prompts = [formatter.format(p, d, s) for p, d, s in zip(batch["prompt"], batch["dream"], batch["symbols"])]
         outputs = model_pipeline(prompts, max_length=max_length)
         batch["interpretation"] = [formatter.unformat(out[0]["generated_text"]) for out in outputs]
+
+        # Free GPU memory between batches
+        torch.cuda.empty_cache()
+        gc.collect()
+
         return batch
 
     # Map over dataset with batching and caching enabled
@@ -168,8 +178,9 @@ def batch_generate_interpretations(dataset: Dataset, model_pipeline, formatter, 
         function=model_inference,
         batched=True,
         batch_size=batch_size,
-        cache_file_name= os.path.join(save_dir, "intermediate_cache.arrow"),
-        load_from_cache_file=True
+        # cache_file_name= os.path.join(save_dir, "intermediate_cache.arrow"),
+        # load_from_cache_file=True,
+        remove_columns=[]
     )
 
     # Save final results to disk
