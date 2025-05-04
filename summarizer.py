@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 import os, gc
 import pandas as pd
+import time
 
 
 # primitive bart model
@@ -159,32 +160,50 @@ class PromptFormatter:
 # after each batch using `torch.cuda.empty_cache()` and `gc.collect()`.
 # This prevents out-of-memory (OOM) errors in large datasets or constrained VRAM environments.
 
-def batch_generate_interpretations(dataset: Dataset, model_pipeline, formatter, batch_size=8, max_length=250, save_dir="outputs"):
+# Improved: generic, resumable, disk-saving batch generation
+
+def batch_generate_interpretations(df, model_pipeline, 
+                                   input_column="input_text", output_column="interpretation", 
+                                   batch_size=8, save_dir="outputs"):
     os.makedirs(save_dir, exist_ok=True)
 
-    def model_inference(batch):
-        prompts = [formatter.format(p, d, s) for p, d, s in zip(batch["prompt"], batch["dream"], batch["symbols"])]
-        outputs = model_pipeline(prompts, max_length=max_length)
-        batch["interpretation"] = [formatter.unformat(out[0]["generated_text"]) for out in outputs]
+    # Read processed hashes from existing CSVs
+    processed_hashes = set()
+    for f in os.listdir(save_dir):
+        if f.endswith(".csv"):
+            try:
+                existing_df = pd.read_csv(os.path.join(save_dir, f), usecols=["hash"])
+                processed_hashes.update(existing_df["hash"].tolist())
+            except Exception:
+                continue
 
-        # Free GPU memory between batches
+    # Filter out already processed samples
+    initial_len = len(df)
+    df = df[~df["hash"].isin(processed_hashes)].reset_index(drop=True)
+    print(f"✅ Already processed: {initial_len - len(df)} / {initial_len} entries")
+
+    # Now work in batches
+    for start in tqdm(range(0, len(df), batch_size), desc="Generating batches"):
+        end = min(start + batch_size, len(df))
+        batch = df.iloc[start:end].copy()
+        if batch.empty:
+            continue
+
+        inputs = batch[input_column].tolist()
+        try:
+            outputs = model_pipeline(inputs)
+            outputs = [out[0]["generated_text"] for out in outputs]
+        except Exception as e:
+            print(f"❌ Error in batch {start}-{end}: {e}")
+            continue
+
+        batch[output_column] = outputs
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        batch_file = os.path.join(save_dir, f"batch_{start}_{end}_{timestamp}.csv")
+        batch.to_csv(batch_file, index=False)
+
         torch.cuda.empty_cache()
         gc.collect()
 
-        return batch
-
-    # Map over dataset with batching and caching enabled
-    result_dataset = dataset.map(
-        function=model_inference,
-        batched=True,
-        batch_size=batch_size,
-        # cache_file_name= os.path.join(save_dir, "intermediate_cache.arrow"),
-        # load_from_cache_file=True,
-        remove_columns=[]
-    )
-
-    # Save final results to disk
-    result_dataset.to_csv(os.path.join(save_dir, "results.csv"))
-
-    return result_dataset.to_pandas()
-
+    print("🏁 Batch generation complete.")
+    return None
