@@ -80,3 +80,21 @@ def save_df_as_pretty_html(df, filename="output.html"):
         f.write(f"<!DOCTYPE html><html><head>{style}</head><body>{html}</body></html>")
 
     print(f"✅ HTML table saved to: {filename}")
+
+
+def read_csvs(save_dir = "output"):
+    import os
+    import pandas as pd  
+    dfs = []
+
+    for f in os.listdir(save_dir):
+        if f.endswith(".csv"):
+            try:
+                existing_df = pd.read_csv(os.path.join(save_dir, f))
+                existing_df["filename"] = f
+                dfs.append(existing_df)
+            except Exception:
+                continue
+
+    dataset = pd.concat(dfs)
+    return dataset

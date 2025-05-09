@@ -86,7 +86,7 @@ def load_mistral_4bit_model(model_name="mistralai/Mistral-7B-Instruct"):
 
 
 
-def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation", max_possible=256, max_length=1024):
+def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation", max_possible=256, max_new_tokens=512, ):
     low, high = 1, max_possible
     best = 1
 
@@ -100,11 +100,11 @@ def find_max_batch_size(model, tokenizer, sample_prompt, task="text-generation",
                 tokenizer=tokenizer,
                 batch_size=mid,
                 truncation=False,
-                max_length=max_length,
+                max_new_tokens=max_new_tokens, 
                 do_sample=False
             )
             prompts = [sample_prompt] * mid
-            _ = test_pipeline(prompts, max_length=max_length)
+            _ = test_pipeline(prompts)
             best = mid
             low = mid + 1
             print("✅ success")

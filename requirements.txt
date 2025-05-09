@@ -14,3 +14,5 @@ tqdm
 huggingface_hub
 sentence-transformers
 nbformat
+nltk 
+seaborn
