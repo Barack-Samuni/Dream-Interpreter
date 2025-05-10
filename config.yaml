@@ -7,3 +7,5 @@ data:
 model:
   name: 'all-MiniLM-L6-v2'
   num_keywords: 5
+  num_semantic: 50
+  diversity: 0.7

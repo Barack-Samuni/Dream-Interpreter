@@ -5,8 +5,11 @@ def release_all_gpu_memory(additional_objects=[]):
 
     # Delete model objects (make sure they're declared global or passed)
     globals_to_clear = ["model", "tokenizer", "text2text_generator"] + additional_objects
+    print(globals_to_clear)
+    gks = list(globals().keys())
+    print(gks)
     for name in globals_to_clear:
-        if name in globals():
+        if name in gks:
             print("clearing ", name)
             del globals()[name]
 
@@ -20,6 +23,15 @@ def release_all_gpu_memory(additional_objects=[]):
 
     print("✅ All GPU memory cleared.")
 
+def globals_snapshot():
+    import pandas as pd
+    gks = list(globals().keys())
+    vars = []
+    for k in gks:
+        v = globals()[k]
+        vars.append({"key": k, "var": str(v) , "type": str(type(v))})
+    tps = pd.DataFrame(vars)
+    return tps
 
 def save_df_as_pretty_html(df, filename="output.html"):
     # Convert newlines to <br> for HTML
@@ -44,14 +56,18 @@ def save_df_as_pretty_html(df, filename="output.html"):
         font-size: 16px;
         font-family: Arial, sans-serif;
         width: 100%;
-        table-layout: auto;
-        word-break: break-word;
+        table-layout: auto; /* ✅ Let browser fit naturally */
     }
     .styled-table th, .styled-table td {
         border: 1px solid #dddddd;
         padding: 10px;
         vertical-align: top;
         text-align: left;
+        overflow-wrap: break-word; /* ✅ Break inside words */
+        white-space: pre-wrap; /* ✅ Honor \\n linebreaks */
+    }
+    .styled-table td {
+        max-width: 600px; /* ✅ Avoid huge dream fields expanding table */
     }
     .styled-table th {
         background-color: #f2f2f2;
@@ -64,3 +80,21 @@ def save_df_as_pretty_html(df, filename="output.html"):
         f.write(f"<!DOCTYPE html><html><head>{style}</head><body>{html}</body></html>")
 
     print(f"✅ HTML table saved to: {filename}")
+
+
+def read_csvs(save_dir = "output"):
+    import os
+    import pandas as pd  
+    dfs = []
+
+    for f in os.listdir(save_dir):
+        if f.endswith(".csv"):
+            try:
+                existing_df = pd.read_csv(os.path.join(save_dir, f))
+                existing_df["filename"] = f
+                dfs.append(existing_df)
+            except Exception:
+                continue
+
+    dataset = pd.concat(dfs)
+    return dataset
