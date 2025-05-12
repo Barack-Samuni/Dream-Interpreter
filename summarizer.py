@@ -192,7 +192,9 @@ def batch_generate_interpretations(df, model_pipeline,
         inputs = batch[input_column].tolist()
         try:
             outputs = model_pipeline(inputs)
-            outputs = [out[0]["generated_text"] for out in outputs]
+            if type(outputs[0]) is list:
+                outputs = sum(outputs,[])
+            outputs = [out["generated_text"] for out in outputs]
         except Exception as e:
             print(f"❌ Error in batch {start}-{end}: {e}")
             continue

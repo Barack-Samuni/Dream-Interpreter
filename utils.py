@@ -6,8 +6,8 @@ def release_all_gpu_memory(additional_objects=[]):
     # Delete model objects (make sure they're declared global or passed)
     globals_to_clear = ["model", "tokenizer", "text2text_generator"] + additional_objects
     print(globals_to_clear)
-    gks = list(globals().keys())
-    print(gks)
+    # gks = list(globals().keys())
+    # print(gks)
     for name in globals_to_clear:
         if name in gks:
             print("clearing ", name)
