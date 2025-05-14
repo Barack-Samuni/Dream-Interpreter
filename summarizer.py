@@ -9,6 +9,8 @@ import pandas as pd
 import time
 import hashlib
 
+from yaml_parser import load_config
+
 # primitive bart model
 def load_summarizer(model_name="sshleifer/distilbart-cnn-12-6"):
     device = 0 if torch.cuda.is_available() else -1
@@ -57,9 +59,41 @@ def format_prompt(prompt, dream, symbols, model_family="decoder"):
         raise ValueError(f"Unknown model_family: {model_family}")
 
 
-def format_input(dataset, formatter, tokenizer):
+def attach_meanings(dream_df, keywords_df):
+
+    config = load_config()
+    sym_col = "symbol"
+    kw_col = config['data']['keywords_column']
+    interp_col = config['data']['interpretation_column']
+
+    #for i, ex in dream_df.iterrows():
+        #print(ex)
+
+    def get_meanings(dream):
+        keys = dream[kw_col].split(";")[:5]
+        
+        #print(keys)
+        syms = keywords_df[keywords_df[kw_col].isin(keys)]
+
+        descr = syms.apply(lambda r: f' - {r[sym_col]}: {r[kw_col]}{r[interp_col]}', axis = 1)
+        meanings = "\n".join(descr)
+        return meanings 
+
+    dream_df["interpretations"] = dream_df.apply(get_meanings, axis = 1)
+
+    return dream_df
+
+
+        
+
+def format_input(dataset, prompt, formatter, tokenizer):
     # yes, not very elegant
-    dataset["input"] = dataset.apply(lambda r: formatter.format(r['prompt'], r['dream'], r['symbols']), axis = 1)
+
+    config = load_config()
+    dream = config['data']['dream_text_column']
+    #interp_col = config['data']['interpretation_column']
+
+    dataset["input"] = dataset.apply(lambda r: formatter.format(prompt, r[dream], r["interpretations"]), axis = 1)
     dataset["len"] = dataset["input"].str.len()
     dataset["input_tokens"] = dataset.input.apply(lambda prmt: tokenizer.tokenize(prmt, truncation=False, max_length=1024))
     dataset["input_tokens_len"] = dataset.input_tokens.apply(len)
