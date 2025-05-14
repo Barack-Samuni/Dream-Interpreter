@@ -79,7 +79,7 @@ def attach_meanings(dream_df, keywords_df):
         meanings = "\n".join(descr)
         return meanings 
 
-    dream_df["interpretations"] = dream_df.apply(get_meanings, axis = 1)
+    dream_df["meanings"] = dream_df.apply(get_meanings, axis = 1)
 
     return dream_df
 
@@ -88,12 +88,12 @@ def attach_meanings(dream_df, keywords_df):
 
 def format_input(dataset, prompt, formatter, tokenizer):
     # yes, not very elegant
-
+    print("formatting input")
     config = load_config()
     dream = config['data']['dream_text_column']
     #interp_col = config['data']['interpretation_column']
 
-    dataset["input"] = dataset.apply(lambda r: formatter.format(prompt, r[dream], r["interpretations"]), axis = 1)
+    dataset["input"] = dataset.apply(lambda r: formatter.format(prompt, r[dream], r["meanings"]), axis = 1)
     dataset["len"] = dataset["input"].str.len()
     dataset["input_tokens"] = dataset.input.apply(lambda prmt: tokenizer.tokenize(prmt, truncation=False, max_length=1024))
     dataset["input_tokens_len"] = dataset.input_tokens.apply(len)
@@ -254,7 +254,7 @@ def batch_generate_interpretations(df, model_pipeline,
 
         batch[output_column] = outputs
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        batch_file = os.path.join(save_dir, f"batch_{start}_{end}_{timestamp}.csv")
+        batch_file = os.path.join(save_dir, f"{timestamp}_batch_{start}_{end}.csv")
         batch.to_csv(batch_file, index=False)
 
         torch.cuda.empty_cache()
