@@ -7,7 +7,7 @@ from tqdm import tqdm
 import os, gc
 import pandas as pd
 import time
-
+import hashlib
 
 # primitive bart model
 def load_summarizer(model_name="sshleifer/distilbart-cnn-12-6"):
@@ -55,6 +55,25 @@ def format_prompt(prompt, dream, symbols, model_family="decoder"):
         return f"Interpret this dream: {dream.strip()}\nSymbols: {symbols.strip()}"
     else:
         raise ValueError(f"Unknown model_family: {model_family}")
+
+
+def format_input(dataset, formatter, tokenizer):
+    # yes, not very elegant
+    dataset["input"] = dataset.apply(lambda r: formatter.format(r['prompt'], r['dream'], r['symbols']), axis = 1)
+    dataset["len"] = dataset["input"].str.len()
+    dataset["input_tokens"] = dataset.input.apply(lambda prmt: tokenizer.tokenize(prmt, truncation=False, max_length=1024))
+    dataset["input_tokens_len"] = dataset.input_tokens.apply(len)
+    dataset
+
+    dataset.drop(columns=["input_tokens"] ,inplace=True)
+
+    def get_hash(text):
+        return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+    dataset["hash"] = dataset["input"].apply(get_hash) 
+
+    dataset.sort_values("input_tokens_len", ascending=False, inplace=True)
+    return dataset
 
 
 # Load flan-T5 model

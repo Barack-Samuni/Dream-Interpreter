@@ -1,8 +1,9 @@
 data:
   dream_text_file_path: "datasets/rsos_dream_data.tsv"
-  keywords_file_path: "datasets/fixed_interpretations.csv"
+  keywords_file_path: "datasets/augmented_25.05.13-17.csv"
   dream_text_column: "text_dream"
-  keywords_column: "Dream Symbol"
+  keywords_column: "context"
+  interpretation_column: "meaning"
 
 model:
   name: 'all-MiniLM-L6-v2'

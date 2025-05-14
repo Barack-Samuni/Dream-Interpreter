@@ -172,7 +172,7 @@ def extract_and_save_keywords_from_dataframes(config_path:str='config.yaml') \
 
     for dream in dream_df[config['data']['dream_text_column']]:
         keywords = extract_keywords_from_text(dream, keywords_embeddings, candidate_keywords, model, top_n)
-        results.append(",".join(keywords))
+        results.append(";".join(keywords))
 
     dream_df[config['data']['keywords_column']] = results
 
