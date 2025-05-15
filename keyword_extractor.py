@@ -145,7 +145,7 @@ def extract_keywords_with_semantic_search(dream_text: str, keywords_embeddings: 
                                      candidate_keywords=filtered_keywords, model=model, top_n_keywords=top_n_mmr,
                                      diversity=diversity)
 
-def extract_and_save_keywords_from_dataframes(config_path:str='config.yaml') \
+def extract_and_save_keywords_from_dataframes(dream_df, keywords_df, config_path:str='config.yaml') \
         -> pd.DataFrame:
     """
     This function gets a config file path and uses its parameters to
@@ -154,7 +154,6 @@ def extract_and_save_keywords_from_dataframes(config_path:str='config.yaml') \
     :return:
     """
     config = load_config(config_path)
-    dream_df, keywords_df = read_datasets(config)
     candidate_keywords = keywords_df[config['data']['keywords_column']].dropna().unique().tolist()
 
     # Load model

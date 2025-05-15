@@ -98,3 +98,63 @@ def read_csvs(save_dir = "output"):
 
     dataset = pd.concat(dfs)
     return dataset
+
+
+def plot_evaluations(dreams_interpretations_df):
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    from scipy import stats
+
+    # Create figure with subplots for non-perplexity scores
+    fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+    plt.grid()
+
+    # Plot distributions without perplexity
+    scores_without_perplexity = ['BLEU', 'ROUGE', 'BERT']
+    for score in scores_without_perplexity:
+        sns.kdeplot(data=dreams_interpretations_df[score], label=score, ax=ax1)
+    ax1.set_title('Score Distributions (BLEU, ROUGE, BERT)')
+    ax1.legend()
+
+    # Calculate statistics for heatmap without perplexity
+    stats_df = pd.DataFrame()
+    for score in scores_without_perplexity:
+        stats_df[score] = [
+            dreams_interpretations_df[score].min(),
+            dreams_interpretations_df[score].max(),
+            dreams_interpretations_df[score].mean(),
+            dreams_interpretations_df[score].median(),
+            stats.mode(dreams_interpretations_df[score])[0]
+        ]
+    stats_df.index = ['Min', 'Max', 'Average', 'Median', 'Mode']
+
+    # Plot heatmap
+    sns.heatmap(stats_df, annot=True, fmt='.3f', cmap='YlOrRd', ax=ax2)
+    ax2.set_title('Score Statistics (BLEU, ROUGE, BERT)')
+    plt.tight_layout()
+
+    # Create separate figure for perplexity
+    fig2, (ax3, ax4) = plt.subplots(2, 1, figsize=(12, 10))
+
+    # Plot perplexity distribution
+    sns.kdeplot(data=dreams_interpretations_df['perplexity'], ax=ax3)
+    ax3.set_title('Perplexity Distribution')
+
+    # Calculate perplexity statistics
+    perplexity_stats = pd.DataFrame({
+        'perplexity': [
+            dreams_interpretations_df['perplexity'].min(),
+            dreams_interpretations_df['perplexity'].max(),
+            dreams_interpretations_df['perplexity'].mean(),
+            dreams_interpretations_df['perplexity'].median(),
+            stats.mode(dreams_interpretations_df['perplexity'])[0]
+        ]
+    })
+    perplexity_stats.index = ['Min', 'Max', 'Average', 'Median', 'Mode']
+
+    # Plot perplexity heatmap
+    sns.heatmap(perplexity_stats, annot=True, fmt='.3f', cmap='YlOrRd', ax=ax4)
+    ax4.set_title('Perplexity Statistics')
+    plt.tight_layout()
+
+    plt.show()
