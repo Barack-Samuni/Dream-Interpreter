@@ -104,6 +104,7 @@ def plot_evaluations(dreams_interpretations_df):
     import seaborn as sns
     import matplotlib.pyplot as plt
     from scipy import stats
+    import pandas as pd
 
     # Create figure with subplots for non-perplexity scores
     fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
