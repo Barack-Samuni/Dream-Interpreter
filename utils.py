@@ -33,7 +33,8 @@ def globals_snapshot():
     tps = pd.DataFrame(vars)
     return tps
 
-def save_df_as_pretty_html(df, filename="output.html"):
+def save_df_as_pretty_html(df, filename="output.html", index=True):
+    pd.set_option("display.max_colwidth", None)
     # Convert newlines to <br> for HTML
     df_html_ready = df.copy()
     for col in df_html_ready.columns:
@@ -42,7 +43,7 @@ def save_df_as_pretty_html(df, filename="output.html"):
     # Generate styled HTML
     html = df_html_ready.to_html(
         escape=False,  # Needed to render <br>
-        index=False,
+        index=index,
         border=0,
         classes="styled-table"
     )
